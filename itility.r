@@ -201,7 +201,30 @@ servercount_by_cluster <- summary_df %>%
 underutilized_VMs_by_cluster <- underutilized_VMs %>%
   group_by(Cluster) %>%
   summarize(ServerCount = n())
-  
+
+# Log model for predicting CPU utilization
+
+wide_df_model <- wide_df %>%
+  mutate(AboveMeanAvgCpu = as.numeric(AvgCpuUsage > 364062326))
+
+# Check class bias
+table(wide_df_model$AboveMeanAvgCpu)
+
+# Create Training Data
+input_ones <- wide_df_model[which(wide_df_model$AboveMeanAvgCpu == 1), ]  # all 1's
+input_zeros <- wide_df_model[which(wide_df_model$AboveMeanAvgCpu == 0), ]  # all 0's
+set.seed(100)  # for repeatability of samples
+input_ones_training_rows <- sample(1:nrow(input_ones), 0.7*nrow(input_ones))  # 1's for training
+input_zeros_training_rows <- sample(1:nrow(input_zeros), 0.7*nrow(input_ones))  # 0's for training. Pick as many 0's as 1's
+training_ones <- input_ones[input_ones_training_rows, ]  
+training_zeros <- input_zeros[input_zeros_training_rows, ]
+trainingData <- rbind(training_ones, training_zeros)  # row bind the 1's and 0's 
+
+# Create Test Data
+test_ones <- input_ones[-input_ones_training_rows, ]
+test_zeros <- input_zeros[-input_zeros_training_rows, ]
+testData <- rbind(test_ones, test_zeros)  # row bind the 1's and 0's 
+
 
 
 
