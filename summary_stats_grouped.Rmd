@@ -1,0 +1,35 @@
+---
+title: "Descriptive Statistics - Data Grouped by VM"
+author: "Brian Kichler"
+date: "May 18, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+|                                                          |descriptive_stat_summary (N = 4261) |
+|:---------------------------------------------------------|:--------------------------------|
+|**Observations by VM**                                    |&nbsp;&nbsp;                     |
+|&nbsp;&nbsp; mean                                         |51.70                            |
+|&nbsp;&nbsp; sd                                           |10.38                            |
+|&nbsp;&nbsp; se                                           |0.16                             |
+|&nbsp;&nbsp; IQR                                          |2                                |
+|&nbsp;&nbsp; Q0.25                                        |53                               |
+|&nbsp;&nbsp; Q0.75                                        |55                               |
+|**Average of Median CPU Usage Grouped by VM**             |&nbsp;&nbsp;                     |
+|&nbsp;&nbsp; mean                                         |374449402.16                 |
+|&nbsp;&nbsp; sd                                           |207059578.73                |
+|&nbsp;&nbsp; se                                           |3172046.60               |
+|&nbsp;&nbsp; IQR                                          |299908662.65                |
+|&nbsp;&nbsp; Q0.25                                        |208114707.76               |
+|&nbsp;&nbsp; Q0.75                                        |508023370.41               |
+|**Average of Median Memory Usage/Activity Grouped by VM** |&nbsp;&nbsp;                     |
+|&nbsp;&nbsp; mean                                         |346.25                |
+|&nbsp;&nbsp; sd                                           |197.17              |
+|&nbsp;&nbsp; se                                           |3.02               |
+|&nbsp;&nbsp; IQR                                          |282.90               |
+|&nbsp;&nbsp; Q0.25                                        |184.52               |
+|&nbsp;&nbsp; Q0.75                                        |467.43               |
+

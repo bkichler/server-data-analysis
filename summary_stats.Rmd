@@ -1,0 +1,30 @@
+---
+title: "Summary Statistics - Wide Dataframe"
+output: html_document
+---
+
+|                                                    |wide_df (N = 220,294)                  |
+|:---------------------------------------------------|:--------------------------------------|
+|**Average Memory Usage**                            |&nbsp;&nbsp;                           |
+|&nbsp;&nbsp; min                                    |0                                      |
+|&nbsp;&nbsp; max                                    |1000                                   |
+|&nbsp;&nbsp; mean (sd)                              |338.67 &plusmn; 244.31                 |
+|**Average CPU Usage**                               |&nbsp;&nbsp;                           |
+|&nbsp;&nbsp; min                                    |2009                                   |
+|&nbsp;&nbsp; median                                 |311125059                              |
+|&nbsp;&nbsp; max                                    |999997568                              |
+|&nbsp;&nbsp; mean (sd)                              |364,062,326.14 &plusmn; 248,293,923.30 |
+|**Memory Usage Range**                              |&nbsp;&nbsp;                           |
+|&nbsp;&nbsp; min                                    |-996352791                             |
+|&nbsp;&nbsp; max                                    |999777179                              |
+|&nbsp;&nbsp; mean (sd)                              |-26,094,043.82 &plusmn; 372,363,440.34 |
+|**CPU Usage Range**                                 |&nbsp;&nbsp;                           |
+|&nbsp;&nbsp; min                                    |-995741682                             |
+|&nbsp;&nbsp; max                                    |997821971                              |
+|&nbsp;&nbsp; mean (sd)                              |17,955,695.42 &plusmn; 393,676,353.14  |
+|**Observation Count & Percent of Total by Cluster** |&nbsp;&nbsp;                           |
+|&nbsp;&nbsp; 1                                      |54,711 (25%)                           |
+|&nbsp;&nbsp; 2                                      |45,021 (20%)                           |
+|&nbsp;&nbsp; 3                                      |61,978 (28%)                           |
+|&nbsp;&nbsp; 4                                      |33,901 (15%)                           |
+|&nbsp;&nbsp; 5                                      |24,683 (11%)                           |

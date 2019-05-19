@@ -1,0 +1,16 @@
+---
+title: "Raw Data Summary"
+author: "Brian Kichler"
+date: "May 18, 2019"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Raw Data Summary (After Import)
+
+```{r raw_data, echo=FALSE}
+summary(raw_data)
+```

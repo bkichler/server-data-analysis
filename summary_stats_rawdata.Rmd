@@ -1,0 +1,19 @@
+---
+title: "Raw Data (After Import)"
+author: "Brian Kichler"
+date: "May 18, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summary Statistics
+
+
+```{r}
+load("Itility - Global ENV.RData")
+summary(raw_data)
+```
+
