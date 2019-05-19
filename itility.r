@@ -10,7 +10,7 @@ library(qwraps2)
 library(knitr)
 library(rmarkdown)
 
-raw_data <- read_delim(list.files()[4], ";")
+raw_data <- read_delim(list.files()[18], ";")
 raw_data$time <- as.Date(raw_data$time, "%m-%d-%Y")
 working_df <- raw_data %>% mutate(row_id = row_number())
 
@@ -29,7 +29,7 @@ wide_df <- memory_vals %>%
   full_join(cpu_vals, by = c("row_id")) %>%
   select(1:6, 8, 15:17, 20:21) %>%
   mutate(MaxValue.x = MaxValue.x/1000000,
-         AvgValue.x = MaxValue.x/1000000,
+         AvgValue.x = AvgValue.x/1000000,
          MinValue.x = MinValue.x/1000000,
          MaxValue.y = MaxValue.y/1000000,
          AvgValue.y = AvgValue.y/1000000,
@@ -225,10 +225,39 @@ test_ones <- input_ones[-input_ones_training_rows, ]
 test_zeros <- input_zeros[-input_zeros_training_rows, ]
 testData <- rbind(test_ones, test_zeros)  # row bind the 1's and 0's 
 
+# WOE test
+wide_df$Cluster <- as.factor(wide_df$Cluster)
+wide_df$MemoryMB <- as.factor(wide_df$MemoryMB)
+wide_df$CpuMHz <- as.factor(wide_df$CpuMHz)
+wide_df$NumCpu <- as.factor(wide_df$NumCpu)
+factor_vars <- c("Cluster", "MemoryMB", "CpuMHz", "NumCpu")
 
+# Use InformationValue package to calculate predicive value of categorical vars in the data set
+all_iv <- data.frame(VARS=factor_vars, IV=numeric(length(factor_vars)), STRENGTH=character(length(factor_vars)), stringsAsFactors = F)
+for (factor_var in factor_vars){
+  all_iv[all_iv$VARS == factor_var, "IV"] <- InformationValue::IV(X=wide_df_model[, factor_var], Y=wide_df_model$AboveMeanAvgCpu)
+  all_iv[all_iv$VARS == factor_var, "STRENGTH"] <- attr(InformationValue::IV(X=wide_df_model[, factor_var], Y=wide_df_model$AboveMeanAvgCpu), "howgood")
+}
 
+# Compute information values for remaining continuous vars
+continuous_vars <- c("AvgMemUsage", "MinMemUsage", "MaxMemUsage", "AvgCpuUsage", "MinCpuUsage", "MaxCpuUsage", "MemUsageRange", "CpuUsageRange")
 
+iv_df <- data.frame(VARS=c(factor_vars, continuous_vars), IV=numeric(12))  # init for IV results
 
+# Recompute IV for factors
+for(factor_var in factor_vars){
+  smb <- smbinning.factor(trainingData, y="AboveMeanAvgCpu", x=factor_var)  # WOE table
+  if(class(smb) != "character"){ # heckA if some error occured
+    iv_df[iv_df$VARS == factor_var, "IV"] <- smb$iv
+  }
+}
+
+for(continuous_var in continuous_vars){
+  smb <- smbinning(trainingData, y="AboveMeanAvgCpu", x=continuous_var)  # WOE table
+  if(class(smb) != "character"){  # any error while calculating scores.
+    iv_df[iv_df$VARS == continuous_var, "IV"] <- smb$iv
+  }
+}
 
 
 
