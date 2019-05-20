@@ -10,7 +10,7 @@ library(qwraps2)
 library(knitr)
 library(rmarkdown)
 
-raw_data <- read_delim(list.files()[18], ";")
+raw_data <- read_delim(list.files()[19], ";")
 raw_data$time <- as.Date(raw_data$time, "%m-%d-%Y")
 working_df <- raw_data %>% mutate(row_id = row_number())
 
@@ -43,11 +43,12 @@ summary_stats <-
   list("Average Memory Usage" =
          list("min" = ~ min(.data$AvgMemUsage),
               "max" = ~ max(.data$AvgMemUsage),
+              "median" = ~ median(.data$AvgMemUsage),
               "mean (sd)" = ~ qwraps2::mean_sd(.data$AvgMemUsage)),
        "Average CPU Usage" =
          list("min" = ~ min(.data$AvgCpuUsage),
-              "median" = ~ median(.data$AvgCpuUsage),
               "max" = ~ max(.data$AvgCpuUsage),
+              "median" = ~ median(.data$AvgCpuUsage),
               "mean (sd)" = ~ qwraps2::mean_sd(.data$AvgCpuUsage)),
        "Memory Usage Range" =
          list("min" = ~ min(.data$MemUsageRange),
@@ -210,48 +211,48 @@ wide_df_model <- wide_df %>%
 # Check class bias
 table(wide_df_model$BelowQ1AvgCpuUsage)
 
-# Create Training Data
-input_ones <- wide_df_model[which(wide_df_model$BelowQ1AvgCpuUsage == 1), ]  # all 1's
-input_zeros <- wide_df_model[which(wide_df_model$BelowQ1AvgCpuUsage == 0), ]  # all 0's
-set.seed(100)  # for repeatability of samples
-input_ones_training_rows <- sample(1:nrow(input_ones), 0.8*nrow(input_ones))  # 1's for training
-input_zeros_training_rows <- sample(1:nrow(input_zeros), 0.8*nrow(input_ones))  # 0's for training. Pick as many 0's as 1's
+# Training Data
+input_ones <- wide_df_model[which(wide_df_model$BelowQ1AvgCpuUsage == 1), ]
+input_zeros <- wide_df_model[which(wide_df_model$BelowQ1AvgCpuUsage == 0), ]
+set.seed(100)
+input_ones_training_rows <- sample(1:nrow(input_ones), 0.8*nrow(input_ones))
+input_zeros_training_rows <- sample(1:nrow(input_zeros), 0.8*nrow(input_ones)) 
 training_ones <- input_ones[input_ones_training_rows, ]  
 training_zeros <- input_zeros[input_zeros_training_rows, ]
-trainingData <- rbind(training_ones, training_zeros)  # row bind the 1's and 0's 
+trainingData <- rbind(training_ones, training_zeros)
 
 # Create Test Data
 test_ones <- input_ones[-input_ones_training_rows, ]
 test_zeros <- input_zeros[-input_zeros_training_rows, ]
-testData <- rbind(test_ones, test_zeros)  # row bind the 1's and 0's 
+testData <- rbind(test_ones, test_zeros)
 
 # WOE test
 wide_df$Cluster <- as.factor(wide_df$Cluster)
-wide_df$MemoryMB <- as.factor(wide_df$MemoryMB)
-wide_df$CpuMHz <- as.factor(wide_df$CpuMHz)
 wide_df$NumCpu <- as.factor(wide_df$NumCpu)
-factor_vars <- c("Cluster", "MemoryMB", "CpuMHz", "NumCpu")
+factor_vars <- c("Cluster", "NumCpu")
 
 # Use InformationValue package to calculate predicive value of categorical vars in the data set
 all_iv <- data.frame(VARS=factor_vars, IV=numeric(length(factor_vars)), STRENGTH=character(length(factor_vars)), stringsAsFactors = F)
 for (factor_var in factor_vars){
-  all_iv[all_iv$VARS == factor_var, "IV"] <- InformationValue::IV(X=wide_df_model[, factor_var], Y=wide_df_model$AboveMeanAvgCpu)
-  all_iv[all_iv$VARS == factor_var, "STRENGTH"] <- attr(InformationValue::IV(X=wide_df_model[, factor_var], Y=wide_df_model$AboveMeanAvgCpu), "howgood")
+  all_iv[all_iv$VARS == factor_var, "IV"] <- InformationValue::IV(X=wide_df_model[, factor_var], Y=wide_df_model$BelowQ1AvgCpuUsage)
+  all_iv[all_iv$VARS == factor_var, "STRENGTH"] <- attr(InformationValue::IV(X=wide_df_model[, factor_var], Y=wide_df_model$BelowQ1AvgCpuUsage), "howgood")
 }
 
 # Compute information values for remaining continuous vars
-continuous_vars <- c("AvgMemUsage", "MinMemUsage", "MaxMemUsage", "AvgCpuUsage", "MinCpuUsage", "MaxCpuUsage", "MemUsageRange", "CpuUsageRange")
+continuous_vars <- c("AvgMemUsage", "MinMemUsage", "MaxMemUsage", "AvgCpuUsage", "MinCpuUsage", "MaxCpuUsage", "MemUsageRange", "CpuUsageRange", "MemoryMB", "CpuMHz")
 
 iv_df <- data.frame(VARS=c(factor_vars, continuous_vars), IV=numeric(12))  # init for IV results
 
 # Recompute IV for factors
 for(factor_var in factor_vars){
-  smb <- smbinning.factor(trainingData, y="AboveMeanAvgCpu", x=factor_var)  # WOE table
-  iv_df[iv_df$VARS == factor_var, "IV"] <- smb$iv
+  smb <- smbinning.factor(trainingData, y="BelowQ1AvgCpuUsage", x=factor_var)  # WOE table
+  if(class(smb) != "character"){  # any error while calculating scores.
+    iv_df[iv_df$VARS == factor_var, "IV"] <- smb$iv
+  }
 }
 
 for(continuous_var in continuous_vars){
-  smb <- smbinning(trainingData, y="AboveMeanAvgCpu", x=continuous_var)  # WOE table
+  smb <- smbinning(trainingData, y="BelowQ1AvgCpuUsage", x=continuous_var)  # WOE table
   if(class(smb) != "character"){  # any error while calculating scores.
     iv_df[iv_df$VARS == continuous_var, "IV"] <- smb$iv
   }
@@ -260,19 +261,19 @@ for(continuous_var in continuous_vars){
 ## Build the model
 ## First pass was a bust and defined a dummy variable for Avg Cpu Usage above mean  
 
-logitMod <- glm(AboveMeanAvgCpu ~ MinCpuUsage + MaxCpuUsage + AvgMemUsage + MinMemUsage + CpuMHz, data=trainingData, family=binomial(link="logit"))
+logitMod <- glm(BelowQ1AvgCpuUsage ~ MinCpuUsage + AvgMemUsage + CpuMHz + NumCpu + MemoryMB, data=trainingData, family=binomial(link="logit"))
 predicted <- predict(logitMod, testData, type="response")
 
   # Define optimal cutoff
-  optCutOff <- optimalCutoff(testData$AboveMeanAvgCpu, predicted[1])
+  optCutOff <- optimalCutoff(testData$BelowQ1AvgCpuUsage, predicted[1])
   
   # Get model diagnostics
   summary(logitMod)
   vif(logitMod)
-  misClassError(wide_df_model$AboveMeanAvgCpu, predicted, threshold = optCutOff)
+  misClassError(wide_df_model$BelowQ1AvgCpuUsage, predicted, threshold = optCutOff)
   
   # Plot ROC curve
-  plotROC(wide_df_model$AboveMeanAvgCpu, predicted)
+  plotROC(wide_df_model$BelowQ1AvgCpuUsage, predicted)
 
 
 

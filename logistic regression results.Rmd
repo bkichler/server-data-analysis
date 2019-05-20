@@ -1,5 +1,5 @@
 ---
-title: "Predictive Model for Average CPU Usage"
+title: "Attempting a Predictive Model for Average CPU Usage"
 author: "Brian Kichler"
 date: "May 18, 2019"
 output: html_document
@@ -7,9 +7,10 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache =TRUE)
 ```
 
-## Building the Model
+## Setting Up the Data
 
 Logistic regression is an appropriate method to predict the probability of an event by defining a dichotomous/dummy variable. In this case, we want to see if we can develop a model that predicts whether a VM will be underutilized and a candidate for reduction in number of CPUs.
 
@@ -26,15 +27,46 @@ There will obviously be bias due to the definition of this variable. Here's what
 table(wide_df_model$BelowQ1AvgCpuUsage)
 ```
 
-To mitigate this, this code creates a data frame called "trainingData," which equally samples ones and zeroes with a set seed, then folds the leftover data into another data frame called "testData."
+To mitigate this, this code creates a data frame called "trainingData," which equally samples ones and zeroes with a set seed, then folds the leftover data into another data frame called "testData":
 
+```{r}
+# Training Data
+input_ones <- wide_df_model[which(wide_df_model$BelowQ1AvgCpuUsage == 1), ]
+input_zeros <- wide_df_model[which(wide_df_model$BelowQ1AvgCpuUsage == 0), ]
+set.seed(100)
+input_ones_training_rows <- sample(1:nrow(input_ones), 0.8*nrow(input_ones))
+input_zeros_training_rows <- sample(1:nrow(input_zeros), 0.8*nrow(input_ones)) 
+training_ones <- input_ones[input_ones_training_rows, ]  
+training_zeros <- input_zeros[input_zeros_training_rows, ]
+trainingData <- rbind(training_ones, training_zeros)
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+# Create Test Data
+test_ones <- input_ones[-input_ones_training_rows, ]
+test_zeros <- input_zeros[-input_zeros_training_rows, ]
+testData <- rbind(test_ones, test_zeros)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Next, the variables "Cluster" and "NumCpu" should be converted to factors, then we can calculate the IVs for the included variables in our wide_df_model data frame. "MemoryMB" and "CpuMHz" are treated as continuous. The "smbinning" package provides functions to calculate WOE by variable, from which we can grab the IV and render it in a table:
+
+```{r}
+iv_df
+```
+
+The only variables above 0.1 are min and max CPU usage. "MinCpuUsage" has a very high IV, and would naturally track with low average CPU usage. 
+
+## Building the Logit Model
+
+Next step is to build the model and predicted average CPU usage:
+
+```{r}
+logitMod <- glm(BelowQ1AvgCpuUsage ~ MinCpuUsage + MaxCpuUsage + AvgMemUsage + MinMemUsage + CpuMHz + NumCpu + MemoryMB + MaxMemUsage, data=trainingData, family=binomial(link="logit"))
+predicted <- predict(logitMod, testData, type="response")
+```
+
+The outcome is really poor, with very little predictive value. The true positive rate basically matches the false positive rate:
+
+```{r echo=FALSE, echo=FALSE, r echo=FALSE}
+plotROC(wide_df_model$BelowQ1AvgCpuUsage, predicted)
+```
+
+
