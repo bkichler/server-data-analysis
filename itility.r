@@ -205,17 +205,17 @@ underutilized_VMs_by_cluster <- underutilized_VMs %>%
 # Log model for predicting CPU utilization
 
 wide_df_model <- wide_df %>%
-  mutate(AboveMeanAvgCpu = as.numeric(AvgCpuUsage > 364062326))
+  mutate(BelowQ1AvgCpuUsage = as.numeric(AvgCpuUsage < 168236689))
 
 # Check class bias
-table(wide_df_model$AboveMeanAvgCpu)
+table(wide_df_model$BelowQ1AvgCpuUsage)
 
 # Create Training Data
-input_ones <- wide_df_model[which(wide_df_model$AboveMeanAvgCpu == 1), ]  # all 1's
-input_zeros <- wide_df_model[which(wide_df_model$AboveMeanAvgCpu == 0), ]  # all 0's
+input_ones <- wide_df_model[which(wide_df_model$BelowQ1AvgCpuUsage == 1), ]  # all 1's
+input_zeros <- wide_df_model[which(wide_df_model$BelowQ1AvgCpuUsage == 0), ]  # all 0's
 set.seed(100)  # for repeatability of samples
-input_ones_training_rows <- sample(1:nrow(input_ones), 0.7*nrow(input_ones))  # 1's for training
-input_zeros_training_rows <- sample(1:nrow(input_zeros), 0.7*nrow(input_ones))  # 0's for training. Pick as many 0's as 1's
+input_ones_training_rows <- sample(1:nrow(input_ones), 0.8*nrow(input_ones))  # 1's for training
+input_zeros_training_rows <- sample(1:nrow(input_zeros), 0.8*nrow(input_ones))  # 0's for training. Pick as many 0's as 1's
 training_ones <- input_ones[input_ones_training_rows, ]  
 training_zeros <- input_zeros[input_zeros_training_rows, ]
 trainingData <- rbind(training_ones, training_zeros)  # row bind the 1's and 0's 
@@ -247,9 +247,7 @@ iv_df <- data.frame(VARS=c(factor_vars, continuous_vars), IV=numeric(12))  # ini
 # Recompute IV for factors
 for(factor_var in factor_vars){
   smb <- smbinning.factor(trainingData, y="AboveMeanAvgCpu", x=factor_var)  # WOE table
-  if(class(smb) != "character"){ # heckA if some error occured
-    iv_df[iv_df$VARS == factor_var, "IV"] <- smb$iv
-  }
+  iv_df[iv_df$VARS == factor_var, "IV"] <- smb$iv
 }
 
 for(continuous_var in continuous_vars){
@@ -259,7 +257,22 @@ for(continuous_var in continuous_vars){
   }
 }
 
+## Build the model
+## First pass was a bust and defined a dummy variable for Avg Cpu Usage above mean  
 
+logitMod <- glm(AboveMeanAvgCpu ~ MinCpuUsage + MaxCpuUsage + AvgMemUsage + MinMemUsage + CpuMHz, data=trainingData, family=binomial(link="logit"))
+predicted <- predict(logitMod, testData, type="response")
+
+  # Define optimal cutoff
+  optCutOff <- optimalCutoff(testData$AboveMeanAvgCpu, predicted[1])
+  
+  # Get model diagnostics
+  summary(logitMod)
+  vif(logitMod)
+  misClassError(wide_df_model$AboveMeanAvgCpu, predicted, threshold = optCutOff)
+  
+  # Plot ROC curve
+  plotROC(wide_df_model$AboveMeanAvgCpu, predicted)
 
 
 

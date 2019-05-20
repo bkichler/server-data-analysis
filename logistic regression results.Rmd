@@ -1,0 +1,40 @@
+---
+title: "Predictive Model for Average CPU Usage"
+author: "Brian Kichler"
+date: "May 18, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Building the Model
+
+Logistic regression is an appropriate method to predict the probability of an event by defining a dichotomous/dummy variable. In this case, we want to see if we can develop a model that predicts whether a VM will be underutilized and a candidate for reduction in number of CPUs.
+
+We can start by defining a new dummy variable, which will be on AvgCpuUsage in wide_df. We'll create the variable "BelowQ1AvgCpuUsage", which is defined as true (1) when an observation falls below the first quartile value for Average CPU Usage:
+
+```{r}
+wide_df_model <- wide_df %>%
+  mutate(BelowQ1AvgCpuUsage = as.numeric(AvgCpuUsage < 168236689))
+```
+
+There will obviously be bias due to the definition of this variable. Here's what it looks like:
+
+```{r}
+table(wide_df_model$BelowQ1AvgCpuUsage)
+```
+
+To mitigate this, this code creates a data frame called "trainingData," which equally samples ones and zeroes with a set seed, then folds the leftover data into another data frame called "testData."
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
