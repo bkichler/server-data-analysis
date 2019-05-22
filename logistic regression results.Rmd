@@ -1,8 +1,10 @@
 ---
-title: "Attempting a Predictive Model for Average CPU Usage"
+title: "Attempting Predictive Models for Average CPU Usage"
 author: "Brian Kichler"
 date: "May 18, 2019"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -17,6 +19,8 @@ Logistic regression is an appropriate method to predict the probability of an ev
 We can start by defining a new dummy variable, which will be on AvgCpuUsage in wide_df. We'll create the variable "BelowQ1AvgCpuUsage", which is defined as true (1) when an observation falls below the first quartile value for Average CPU Usage:
 
 ```{r}
+load("Itility - Global ENV.RData")
+library(tidyverse)
 wide_df_model <- wide_df %>%
   mutate(BelowQ1AvgCpuUsage = as.numeric(AvgCpuUsage < 168236689))
 ```
@@ -61,12 +65,74 @@ Next step is to build the model and predicted average CPU usage:
 ```{r}
 logitMod <- glm(BelowQ1AvgCpuUsage ~ MinCpuUsage + MaxCpuUsage + AvgMemUsage + MinMemUsage + CpuMHz + NumCpu + MemoryMB + MaxMemUsage, data=trainingData, family=binomial(link="logit"))
 predicted <- predict(logitMod, testData, type="response")
+summary(logitMod)
 ```
 
 The outcome is really poor, with very little predictive value. The true positive rate basically matches the false positive rate:
 
-```{r echo=FALSE, echo=FALSE, r echo=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 plotROC(wide_df_model$BelowQ1AvgCpuUsage, predicted)
 ```
+
+## What about modeling summary data?
+
+The number of observations is relatively small (n=4261), so this time we will run the analysis without training data. The results are slightly more favorable with summary data:
+
+```{r, echo=FALSE, warning=FALSE}
+summary_df_model <- summary_df %>%
+  mutate(BelowQ1AvgCpuUsage = as.numeric(MedianAvgVMCpu < 208114707.7632))
+logitMod_summary <- glm(BelowQ1AvgCpuUsage ~ MedianCpuUsageRange + CpuMHz + NumCpu + MedianMemUsageRange + Cluster + ObservationCount, data=summary_df_model, family=binomial(link="logit"))
+predicted_summary <- predict(logitMod_summary, summary_df_model, type="response")
+summary(logitMod_summary)
+confint(logitMod_summary)
+vif(logitMod_summary)
+```
+
+Here's the ROC plot for summary data:
+
+```{r, echo=FALSE}
+plotROC(summary_df_model$BelowQ1AvgCpuUsage, predicted_summary)
+```
+
+The predictive value of this model is still low. "MedianMemUsageRange" and "CpuMHz" both have weak positive estimates, meaning a 1-unit change in either of those variables slightly increases the odds of a VM being in the first quartile for average CPU usage. However, the p-value for CpuMHz is slightly above 0.05 at 0.0656, and more to the point, its high variance inflation factor points to collinearity. If we drop CpuMHz and re-run the analysis, the results look slightly better:
+
+```{r, echo=FALSE, warning=FALSE}
+logitMod_summary2 <- glm(BelowQ1AvgCpuUsage ~ MedianCpuUsageRange + NumCpu + MedianMemUsageRange + Cluster + ObservationCount, data=summary_df_model, family=binomial(link="logit"))
+predicted_summary2 <- predict(logitMod_summary, summary_df_model, type="response")
+summary(logitMod_summary2)
+vif(logitMod_summary2)
+confint(logitMod_summary2)
+```
+
+```{r, echo=FALSE}
+plotROC(summary_df_model$BelowQ1AvgCpuUsage, predicted_summary2)
+```
+
+Our collinearity problem is gone, and there are some interesting results based on number of CPU cores. Now we see the log odds of a VM falling into the first quartile increasing when the number of CPUs is 4 or 8. Here's what the distribution of CPUs by VM looks like: 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+summary_df %>% 
+  group_by(NumCpu) %>% 
+  ggplot(aes(x = NumCpu)) +
+    geom_bar(fill = "red", width = 0.8) +
+    xlab("Number of CPUs") +
+    ylab("Count") +
+    ggtitle("Number of CPUs by Server Count")
+
+num_cpu_group <- summary_df %>% 
+  group_by(NumCpu) %>% 
+  mutate(CpuCount = n()) %>% 
+  summarize(CpuCount = n())
+
+num_cpu_group
+
+```
+
+## Concluding thoughts
+
+- If there were far more observations per VM and consistent POSIX timestamps, it would be easier to train a machine learning model and better understand the underlying trends that are driving behavior
+- There's more analysis that could be done on this data set, but as it stands now, we could advise the client based on the summary analysis at https://slides.com/brian-kichler/itility?token=cLnU1kTL that shows ~ 6% of the multi-CPU VMs underutilized
+- The last log regression yielded some more interesting results, although it's still not a strong predictor for low CPU usage by VM. However, with relatively higher log odds increasing for 8-CPU VMs, we could advise the client to study reduction for these units first. The more impactful result if it holds is the weaker positive log odds increase for 4-CPU VMs, as these represent a high proportion (60%) of the overall count. It would be very useful to plot 4-core and 8-core over time for trend analysis to see if this holds up.
+
 
 

@@ -78,9 +78,9 @@ summary_df <- wide_df %>%
             MedianAvgVmMem = median(AvgMemUsage), 
             MedianCpuUsageRange = median(CpuUsageRange),
             MedianMemUsageRange = median(MemUsageRange),
-            CpuMHz = max(CpuMHz),
-            NumCpu = max(NumCpu),
-            Cluster = max(Cluster))
+            CpuMHz = CpuMHz[1],
+            NumCpu = NumCpu[1],
+            Cluster = Cluster[1])
 
 # Get descriptive statistics and save them to a data frame, check record count by VM
 
@@ -130,7 +130,7 @@ wide_df %>%
   ggplot(aes(x = AvgMemUsage)) +
     geom_histogram(color = "white", alpha = 0.7, fill = "blue") + 
     ggtitle("Average Memory Usage Distribution by Observation Count") +
-    geom_vline(xintercept = 338.67, linetype = "dashed", color = "red", size = 2) +
+    geom_vline(xintercept = 379899467.567, linetype = "dashed", color = "red", size = 2) +
     xlab("Average memory usage (x1000000)") +
     ylab("Observation Count")
 
@@ -205,11 +205,11 @@ underutilized_VMs_by_cluster <- underutilized_VMs %>%
 
 # Log model for predicting CPU utilization
 
-wide_df_model <- wide_df %>%
-  mutate(BelowQ1AvgCpuUsage = as.numeric(AvgCpuUsage < 168236689))
+summary_df_model <- summary_df %>%
+  mutate(BelowQ1AvgCpuUsage = as.numeric(MedianAvgVMCpu < 208114707.7632))
 
 # Check class bias
-table(wide_df_model$BelowQ1AvgCpuUsage)
+table(summary_df_model$BelowQ1AvgCpuUsage)
 
 # Training Data
 input_ones <- wide_df_model[which(wide_df_model$BelowQ1AvgCpuUsage == 1), ]
@@ -227,8 +227,8 @@ test_zeros <- input_zeros[-input_zeros_training_rows, ]
 testData <- rbind(test_ones, test_zeros)
 
 # WOE test
-wide_df$Cluster <- as.factor(wide_df$Cluster)
-wide_df$NumCpu <- as.factor(wide_df$NumCpu)
+summary_df_model$Cluster <- as.factor(summary_df_model$Cluster)
+summary_df_model$NumCpu <- as.factor(summary_df_model$NumCpu)
 factor_vars <- c("Cluster", "NumCpu")
 
 # Use InformationValue package to calculate predicive value of categorical vars in the data set
@@ -241,18 +241,18 @@ for (factor_var in factor_vars){
 # Compute information values for remaining continuous vars
 continuous_vars <- c("AvgMemUsage", "MinMemUsage", "MaxMemUsage", "AvgCpuUsage", "MinCpuUsage", "MaxCpuUsage", "MemUsageRange", "CpuUsageRange", "MemoryMB", "CpuMHz")
 
-iv_df <- data.frame(VARS=c(factor_vars, continuous_vars), IV=numeric(12))  # init for IV results
+iv_df <- data.frame(VARS=c(factor_vars, continuous_vars), IV=numeric(8))  # init for IV results
 
 # Recompute IV for factors
 for(factor_var in factor_vars){
-  smb <- smbinning.factor(trainingData, y="BelowQ1AvgCpuUsage", x=factor_var)  # WOE table
+  smb <- smbinning.factor(summary_df_model, y="BelowQ1AvgCpuUsage", x=factor_var)  # WOE table
   if(class(smb) != "character"){  # any error while calculating scores.
     iv_df[iv_df$VARS == factor_var, "IV"] <- smb$iv
   }
 }
 
 for(continuous_var in continuous_vars){
-  smb <- smbinning(trainingData, y="BelowQ1AvgCpuUsage", x=continuous_var)  # WOE table
+  smb <- smbinning(summary_df_model, y="BelowQ1AvgCpuUsage", x=continuous_var)  # WOE table
   if(class(smb) != "character"){  # any error while calculating scores.
     iv_df[iv_df$VARS == continuous_var, "IV"] <- smb$iv
   }
@@ -261,21 +261,31 @@ for(continuous_var in continuous_vars){
 ## Build the model
 ## First pass was a bust and defined a dummy variable for Avg Cpu Usage above mean  
 
-logitMod <- glm(BelowQ1AvgCpuUsage ~ MinCpuUsage + AvgMemUsage + CpuMHz + NumCpu + MemoryMB, data=trainingData, family=binomial(link="logit"))
-predicted <- predict(logitMod, testData, type="response")
+logitMod_summary <- glm(BelowQ1AvgCpuUsage ~ MedianCpuUsageRange + NumCpu + MedianMemUsageRange + Cluster + ObservationCount, data=summary_df_model, family=binomial(link="logit"))
+predicted_summary <- predict(logitMod_summary, summary_df_model, type="response")
 
   # Define optimal cutoff
-  optCutOff <- optimalCutoff(testData$BelowQ1AvgCpuUsage, predicted[1])
+  optCutOff <- optimalCutoff(summary_df_model$BelowQ1AvgCpuUsage, predicted_summary[1])
   
   # Get model diagnostics
-  summary(logitMod)
-  vif(logitMod)
-  misClassError(wide_df_model$BelowQ1AvgCpuUsage, predicted, threshold = optCutOff)
+  summary(logitMod_summary)
+  vif(logitMod_summary)
+  exp(cbind(OR = coef(logitMod_summary), confint(logitMod_summary)))
+  misClassError(summary_df_model$BelowQ1AvgCpuUsage, predicted, threshold = optCutOff)
+  confint(logitMod_summary)
   
   # Plot ROC curve
-  plotROC(wide_df_model$BelowQ1AvgCpuUsage, predicted)
+  plotROC(summary_df_model$BelowQ1AvgCpuUsage, predicted_summary)
 
-
+  # Full data set
+  logitMod_wide <- glm(BelowQ1AvgCpuUsage ~ MinCpuUsage + MaxCpuUsage + AvgMemUsage + MinMemUsage + CpuMHz + NumCpu + MemoryMB + MaxMemUsage, data=trainingData, family=binomial(link="logit"))
+  predicted_wide <- predict(logitMod_wide, testData, type="response")
+  
+  # Get model diagnostics
+  summary(logitMod_wide)
+  vif(logitMod_wide)
+  misClassError(wide_df_model$BelowQ1AvgCpuUsage, predicted, threshold = optCutOff)
+  
 
 
   
